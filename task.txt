@@ -1,0 +1,230 @@
+
+
+app = Flask(_name_)
+app.secret_key = 'your_secret_key'  # Used for session management
+
+
+# Sample data
+users = {
+    'john': {
+        'username': 'john',
+        'password': 'password',
+        'blogs': [
+            {
+                'id': 1,
+                'title': 'First Blog',
+                'content': 'Hello, this is my first blog post!',
+                'timestamp': datetime.now()
+            }
+        ]
+    }
+}
+
+
+# Home page - Display all blogs
+@app.route('/')
+def home():
+    return render_template('index.html', blogs=get_all_blogs())
+
+
+# User registration
+@app.route('/register', methods=['GET', 'POST'])
+def register():
+    if request.method == 'POST':
+        username = request.form['username']
+        password = request.form['password']
+        if username not in users:
+            users[username] = {
+                'username': username,
+                'password': password,
+                'blogs': []
+            }
+            session['username'] = username
+            return redirect(url_for('home'))
+        else:
+            return 'Username already exists!'
+    return render_template('register.html')
+
+
+# User login
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    if request.method == 'POST':
+        username = request.form['username']
+        password = request.form['password']
+        if username in users and users[username]['password'] == password:
+            session['username'] = username
+            return redirect(url_for('home'))
+        else:
+            return 'Invalid username or password!'
+    return render_template('login.html')
+
+
+# User logout
+@app.route('/logout')
+def logout():
+    session.pop('username', None)
+    return redirect(url_for('home'))
+
+
+# Create a new blog post
+@app.route('/create', methods=['GET', 'POST'])
+def create_blog():
+    if 'username' not in session:
+        return redirect(url_for('login'))
+
+    if request.method == 'POST':
+        title = request.form['title']
+        content = request.form['content']
+        blogs = users[session['username']]['blogs']
+        blog_id = len(blogs) + 1
+        blogs.append({
+            'id': blog_id,
+            'title': title,
+            'content': content,
+            'timestamp': datetime.now()
+        })
+        return redirect(url_for('home'))
+    return render_template('create.html')
+
+
+# Edit a blog post
+@app.route('/edit/<int:blog_id>', methods=['GET', 'POST'])
+def edit_blog(blog_id):
+    if 'username' not in session:
+        return redirect(url_for('login'))
+
+    blogs = users[session['username']]['blogs']
+    blog = next((b for b in blogs if b['id'] == blog_id), None)
+
+    if blog is None:
+        return 'Blog not found!'
+
+    if request.method == 'POST':
+        blog['title'] = request.form['title']
+        blog['content'] = request.form['content']
+        blog['timestamp'] = datetime.now()
+        return redirect(url_for('home'))
+    return render_template('edit.html', blog=blog)
+
+
+# Delete a blog post
+@app.route('/delete/<int:blog_id>')
+def delete_blog(blog_id):
+    if 'username' not in session:
+        return redirect(url_for('login'))
+
+    blogs = users[session['username']]['blogs']
+    blog = next((b for b in blogs if b['id'] == blog_id), None)
+
+    if blog is None:
+        return 'Blog not found!'
+
+    blogs.remove(blog)
+    return redirect(url_for('home'))
+
+
+# Helper function to get all blogs
+def get_all_blogs():
+    all_blogs = []
+    for user in users.values():
+        all_blogs.extend(user['blogs'])
+    return sorted(all_blogs, key=lambda x: x['timestamp'], reverse=True)
+
+
+if _name_ == '_main_':
+    app.run(debug=True)
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Blog App</title>
+</head>
+<body>
+    <h1>Welcome to the Blog App</h1>
+    {% if 'username' in session %}
+        <p>Logged in as: {{ session['username'] }}</p>
+        <a href="{{ url_for('create_blog') }}">Create New Blog</a>
+        <a href="{{ url_for('logout') }}">Logout</a>
+    {% else %}
+        <a href="{{ url_for('register') }}">Register</a>
+        <a href="{{ url_for('login') }}">Login</a>
+    {% endif %}
+
+    <h2>All Blogs:</h2>
+    <ul>
+        {% for blog in blogs %}
+            <li>
+                <h3>{{ blog['title'] }}</h3>
+                <p>{{ blog['content'] }}</p>
+                <p>Posted by: {{ blog['username'] }}</p>
+                <p>Posted at: {{ blog['timestamp'] }}</p>
+                {% if 'username' in session and session['username'] == blog['username'] %}
+                    <a href="{{ url_for('edit_blog', blog_id=blog['id']) }}">Edit</a>
+                    <a href="{{ url_for('delete_blog', blog_id=blog['id']) }}">Delete</a>
+                {% endif %}
+            </li>
+        {% endfor %}
+    </ul>
+</body>
+</html>
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Register</title>
+</head>
+<body>
+    <h1>Register</h1>
+    <form method="POST" action="{{ url_for('register') }}">
+        <label>Username:</label>
+        <input type="text" name="username" required><br>
+        <label>Password:</label>
+        <input type="password" name="password" required><br>
+        <input type="submit" value="Register">
+    </form>
+</body>
+</html>
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Login</title>
+</head>
+<body>
+    <h1>Login</h1>
+    <form method="POST" action="{{ url_for('login') }}">
+        <label>Username:</label>
+        <input type="text" name="username" required><br>
+        <label>Password:</label>
+        <input type="password" name="password" required><br>
+        <input type="submit" value="Login">
+    </form>
+</body>
+</html>
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Create Blog</title>
+</head>
+<body>
+    <h1>Create Blog</h1>
+    <form method="POST" action="{{ url_for('create_blog') }}">
+        <label>Title:</label>
+        <input type="text" name="title" required><br>
+        <label>Content:</label>
+        <textarea name="content" rows="5" required></textarea><br>
+        <input type="submit" value="Create">
+    </form>
+</body>
+</html>
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Display Blog</title>
+</head>
+<body>
+    <h1>{{ blog['title'] }}</h1>
+    <p>{{ blog['content'] }}</p>
+    <p>Posted by: {{ blog['username'] }}</p>
+    <p>Posted at: {{ blog['timestamp'] }}</p>
+    <a href="{{ url_for('home') }}">Go Back</a>
+</body>
+</html>
